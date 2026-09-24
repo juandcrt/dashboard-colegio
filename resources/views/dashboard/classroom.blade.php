@@ -116,7 +116,6 @@
                     </div>
                 </div>
 
-                <!-- COLUMNA DERECHA -->
                 <div class="flex flex-col gap-4">
                 @if($currentCourse && !$isAllActive && isset($courseStats['competencias']) && count($courseStats['competencias']) > 0)
                     <div class="flex-1 group bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/60 rounded-3xl p-5 backdrop-blur-2xl shadow-xl transition-all duration-300 flex flex-col">
@@ -143,17 +142,19 @@
                                         default => ['text' => 'text-rose-600 dark:text-rose-400', 'bar' => 'bg-rose-500'],
                                     };
 
-                                    // Enviando también el nombre real de la competencia por la URL para evitar el error "Competencia 5"
+                                    // ENVIAMOS EL ID DEL CURSO PARA QUE LA FICHA FUNCIONE CORRECTAMENTE
                                     $urlBaseParams = [
                                         'competencia_id' => $competencia['id'] ?? $index, 
                                         'competencia_nombre' => $competencia['nombre'],
+                                        'course_name' => $currentCourse->name,
+                                        'course_id' => $currentCourse->id,
                                         'classroom_id' => $currentClassroom->id ?? 1
                                     ];
                                 @endphp
                                 <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50">
                                     <div class="flex items-center justify-between gap-2 mb-2">
                                         <span class="text-xs font-bold text-slate-700 dark:text-slate-300 truncate pr-2" title="{{ $competencia['nombre'] }}">
-                                            Competencia {{ $index + 1 }}
+                                            {{ $competencia['nombre'] }}
                                         </span>
                                         <div class="flex items-center gap-1.5 flex-shrink-0">
                                             <span class="text-xs font-black {{ $compClasses['text'] }}">{{ $pctComp }}%</span>
@@ -220,13 +221,11 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Columna Mejoraron -->
                     <div class="bg-white/60 dark:bg-slate-900/60 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/50">
                         <div class="flex items-center justify-between mb-4">
                             <h4 class="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 uppercase tracking-wide">
                                 <i class="fa-solid fa-arrow-trend-up"></i> Mejoraron su rendimiento
                             </h4>
-                            <!-- Etiqueta de Meses -->
                             <span class="text-[9px] font-black text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-100 dark:border-emerald-800/30 uppercase tracking-widest shadow-sm">
                                 Agosto <i class="fa-solid fa-arrow-right mx-0.5"></i> Setiembre
                             </span>
@@ -242,14 +241,11 @@
                             @endforelse
                         </ul>
                     </div>
-
-                    <!-- Columna Bajaron -->
                     <div class="bg-white/60 dark:bg-slate-900/60 p-4 rounded-2xl border border-rose-200 dark:border-rose-900/50">
                         <div class="flex items-center justify-between mb-4">
                             <h4 class="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2 uppercase tracking-wide">
                                 <i class="fa-solid fa-arrow-trend-down"></i> Bajaron su rendimiento
                             </h4>
-                            <!-- Etiqueta de Meses -->
                             <span class="text-[9px] font-black text-rose-500 bg-rose-50 dark:bg-rose-500/10 px-2.5 py-1 rounded-md border border-rose-100 dark:border-rose-800/30 uppercase tracking-widest shadow-sm">
                                 Agosto <i class="fa-solid fa-arrow-right mx-0.5"></i> Setiembre
                             </span>
@@ -281,22 +277,18 @@
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <!-- Nivel AD -->
                     <div class="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-inner group">
                         <h4 class="text-xs font-bold text-center text-slate-700 dark:text-slate-300 mb-4 group-hover:text-emerald-500 transition-colors">Nivel AD (Destacado)</h4>
                         <div class="relative h-48 w-full cursor-pointer"><canvas id="chartAD"></canvas></div>
                     </div>
-                    <!-- Nivel A -->
                     <div class="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-inner group">
                         <h4 class="text-xs font-bold text-center text-slate-700 dark:text-slate-300 mb-4 group-hover:text-blue-500 transition-colors">Nivel A (Esperado)</h4>
                         <div class="relative h-48 w-full cursor-pointer"><canvas id="chartA"></canvas></div>
                     </div>
-                    <!-- Nivel B -->
                     <div class="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-inner group">
                         <h4 class="text-xs font-bold text-center text-slate-700 dark:text-slate-300 mb-4 group-hover:text-amber-500 transition-colors">Nivel B (En Proceso)</h4>
                         <div class="relative h-48 w-full cursor-pointer"><canvas id="chartB"></canvas></div>
                     </div>
-                    <!-- Nivel C -->
                     <div class="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-inner group">
                         <h4 class="text-xs font-bold text-center text-slate-700 dark:text-slate-300 mb-4 group-hover:text-rose-500 transition-colors">Nivel C (En Inicio)</h4>
                         <div class="relative h-48 w-full cursor-pointer"><canvas id="chartC"></canvas></div>
@@ -304,7 +296,7 @@
                 </div>
             </div>
 
-            <!-- Tabla de Estudiantes -->
+            <!-- Tabla de Estudiantes (Datos Sincronizados) -->
             <div id="tabla-alumnos" class="bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/60 rounded-3xl overflow-hidden shadow-xl dark:shadow-2xl backdrop-blur-2xl transition-colors duration-300 scroll-mt-6">
                 <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -347,6 +339,10 @@
                             </div>
 
                             <div class="student-results-container hidden flex-col items-end sm:items-center text-xs font-semibold">
+                                <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl border bg-{{ $student->color }}-50 dark:bg-{{ $student->color }}-500/10 text-{{ $student->color }}-600 dark:text-{{ $student->color }}-400 border-{{ $student->color }}-200 dark:border-{{ $student->color }}-500/20 text-sm font-black shadow-sm transition-all">
+                                    {{ $student->letra }}
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-bold mt-1">Logro Promedio: {{ $student->promedio_pct }}%</span>
                             </div>
 
                             <div class="flex items-center gap-3 self-end sm:self-auto">
@@ -368,7 +364,7 @@
     </main>
 </div>
 
-<!-- MODAL MEJORADO Y TOTALMENTE COHERENTE -->
+<!-- MODAL MEJORADO (Muestra la Competencia Específica) -->
 <div id="chartModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-slate-700 transform scale-95 transition-all flex flex-col max-h-[90vh]">
         
@@ -454,11 +450,8 @@
             });
         }
 
-        // =========================================================
-        // LÓGICA DE GRÁFICOS Y MODAL CONECTADA A LA BASE DE DATOS REAL
-        // =========================================================
         const tendenciaGlobal = {!! json_encode($tendenciaGlobal ?? ['AD'=>[], 'A'=>[], 'B'=>[], 'C'=>[]]) !!};
-const historialAlumnos = {!! json_encode($historialAlumnos ?? []) !!};
+        const historialAlumnos = {!! json_encode($historialAlumnos ?? []) !!};
 
         const isDark = document.documentElement.classList.contains('dark');
         const textColor = isDark ? '#94a3b8' : '#64748b';
@@ -478,7 +471,6 @@ const historialAlumnos = {!! json_encode($historialAlumnos ?? []) !!};
                 const studentCount = chart.data.datasets[0].data[dataIndex]; 
                 const labelName = chart.data.datasets[0].label; 
 
-                // Identificar a qué gráfica se le dio clic
                 let letra = 'C';
                 if (labelName.includes('AD')) letra = 'AD';
                 else if (labelName.includes('A')) letra = 'A';
@@ -503,18 +495,22 @@ const historialAlumnos = {!! json_encode($historialAlumnos ?? []) !!};
                     };
                     const conf = levelConfig[letra];
 
-                    // Obtenemos a los alumnos reales desde el JSON del historial generado en el Controlador
                     Object.keys(historialAlumnos).forEach(name => {
-                        const history = historialAlumnos[name][dataIndex]; // Leemos el mes exacto (0=Marzo, 1=Abril...)
+                        const history = historialAlumnos[name][dataIndex]; 
                         
-                        if (history.letra === letra) { // Si la letra de este alumno en este mes coincide con el gráfico
-                            const pct = Math.round((history.score / 20) * 100);
+                        if (history.avg_letra === letra) { 
                             
+                            const compText = (letra === 'C' || letra === 'B') 
+                                ? `Requiere apoyo en: ${history.best_comp_name}` 
+                                : `Destacó en: ${history.best_comp_name}`;
+
                             listaContainer.innerHTML += `
                                 <div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700 transition-colors">
                                     <div class="w-1/2 pr-2">
                                         <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">${name}</h4>
-                                        <p class="text-[9px] text-slate-400 uppercase tracking-widest mt-0.5 truncate">${conf.text}</p>
+                                        <p class="text-[9px] text-slate-500 dark:text-slate-400 font-bold mt-1 truncate">
+                                            <i class="fa-solid fa-star text-amber-400 mr-1"></i> ${compText}
+                                        </p>
                                     </div>
                                     <div class="w-1/4 text-center border-l border-r border-slate-100 dark:border-slate-700">
                                         <span class="inline-block px-3 py-1 rounded-lg text-xs font-black bg-${conf.color}-50 text-${conf.color}-600 dark:bg-${conf.color}-500/10 dark:text-${conf.color}-400 border border-${conf.color}-200 dark:border-${conf.color}-500/20 shadow-sm">
@@ -524,10 +520,10 @@ const historialAlumnos = {!! json_encode($historialAlumnos ?? []) !!};
                                     <div class="w-1/4 pl-3">
                                         <div class="flex justify-between items-end mb-1 text-[10px] font-black text-slate-600 dark:text-slate-300">
                                             <span>Logro</span>
-                                            <span class="text-${conf.color}-500">${pct}%</span>
+                                            <span class="text-${conf.color}-500">${history.avg_pct}%</span>
                                         </div>
                                         <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                                            <div class="bg-${conf.color}-500 h-full rounded-full transition-all" style="width: ${pct}%"></div>
+                                            <div class="bg-${conf.color}-500 h-full rounded-full transition-all" style="width: ${history.avg_pct}%"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -592,7 +588,6 @@ const historialAlumnos = {!! json_encode($historialAlumnos ?? []) !!};
             });
         };
 
-        // Pasamos de los datos hardcodeados a las variables reales generadas en el Backend
         createChart('chartAD', tendenciaGlobal['AD'] || [0,0,0,0,0,0,0], '#10b981', 'Nivel AD'); 
         createChart('chartA',  tendenciaGlobal['A']  || [0,0,0,0,0,0,0], '#3b82f6', 'Nivel A'); 
         createChart('chartB',  tendenciaGlobal['B']  || [0,0,0,0,0,0,0], '#f59e0b', 'Nivel B'); 
@@ -608,30 +603,13 @@ const historialAlumnos = {!! json_encode($historialAlumnos ?? []) !!};
 
     function mostrarResultados() {
         const containers = document.querySelectorAll('.student-results-container');
-        const niveles = [
-            { letra: 'AD', porcentaje: '95%', clase: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
-            { letra: 'A', porcentaje: '80%', clase: 'bg-blue-50 text-blue-600 border-blue-200' },
-            { letra: 'B', porcentaje: '65%', clase: 'bg-amber-50 text-amber-600 border-amber-200' },
-            { letra: 'C', porcentaje: '45%', clase: 'bg-rose-50 text-rose-600 border-rose-200' }
-        ];
-
         containers.forEach(container => {
-            const item = container.closest('.student-item');
-            if (item && !item.classList.contains('hidden')) {
-                if (container.classList.contains('hidden')) {
-                    const nivelRandom = niveles[Math.floor(Math.random() * niveles.length)];
-                    container.innerHTML = `
-                        <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl border ${nivelRandom.clase} text-sm font-black shadow-sm transition-all">
-                            ${nivelRandom.letra}
-                        </span>
-                        <span class="text-[10px] text-slate-400 font-bold mt-1">Logro Promedio: ${nivelRandom.porcentaje}</span>
-                    `;
-                    container.classList.remove('hidden');
-                    container.classList.add('flex');
-                } else {
-                    container.classList.add('hidden');
-                    container.classList.remove('flex');
-                }
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                container.classList.add('flex');
+            } else {
+                container.classList.add('hidden');
+                container.classList.remove('flex');
             }
         });
     }

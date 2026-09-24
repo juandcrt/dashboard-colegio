@@ -29,225 +29,215 @@ class DashboardController extends Controller
         if (!$currentClassroom) $currentClassroom = $classrooms->first();
 
         $students = Student::where('classroom_id', $currentClassroom->id)->orderBy('name', 'asc')->get();
-        $studentIds = $students->pluck('id');
-
         $selectedCourseId = $request->query('course_id', 'all');
         $currentCourse = ($selectedCourseId !== 'all') ? $courses->firstWhere('id', $selectedCourseId) : null;
+        $nombreCursoStr = $currentCourse ? $currentCourse->name : 'Matemática';
 
-        $competencyLabels = [];
-        $competencyData = [];
-        $courseStats = null;
-
-        if ($studentIds->isNotEmpty()) {
-            $query = StudentCompetencyResult::whereIn('student_id', $studentIds);
-
-            if ($currentCourse) {
-                $query->whereHas('competency', function ($q) use ($currentCourse) {
-                    $q->where('course_id', $currentCourse->id);
-                });
-            }
-
-            $courseResults = $query->with('competency')->get();
-            $totalEvaluacionesCurso = $courseResults->count();
-
-            if ($totalEvaluacionesCurso > 0) {
-                $aprobadosCurso = $courseResults->where('score', '>=', 11)->count();
-                $porcentajeAprobados = round(($aprobadosCurso / $totalEvaluacionesCurso) * 100);
-                $promedioCursoRaw = $courseResults->avg('score') ?? 0;
-                $promedioCurso = min(20.0, round($promedioCursoRaw, 1));
-            } else {
-                if ($currentCourse) {
-                    mt_srand((int) hexdec(substr(md5((string) $currentCourse->id), 0, 7)));
-                    $promedioCurso = round(mt_rand(115, 175) / 10, 1);
-                    $porcentajeAprobados = mt_rand(72, 98);            
-                    $totalEvaluacionesCurso = $students->count();
-                } else {
-                    $promedioCurso = 14.8;
-                    $porcentajeAprobados = 85;
-                    $totalEvaluacionesCurso = $students->count() * max(1, $courses->count());
-                }
-            }
-
-            $promedioPorcentaje = round(($promedioCurso / 20) * 100, 1);
-            $nombreCursoStr = $currentCourse ? $currentCourse->name : 'General';
-            $temasPorCurso = $this->obtenerTemasSugeridosPorCurso($nombreCursoStr);
-
-            $preguntasFalladas = $temasPorCurso['falladas'];
-            $preguntasCorrectas = $temasPorCurso['correctas'];
-            $competencyLabels = $temasPorCurso['labels'];
-            $competencyData = $temasPorCurso['scores'];
-
-            $competenciasStats = [];
-            if ($currentCourse) {
-                if ($totalEvaluacionesCurso > 0 && $courseResults->isNotEmpty()) {
-                    $porCompetencia = $courseResults->groupBy(function ($r) { return $r->competency->name ?? 'Competencia'; });
-                    foreach ($porCompetencia as $nombreCompetencia => $resultadosComp) {
-                        $promedioComp = min(20.0, round($resultadosComp->avg('score') ?? 0, 1));
-                        $porcentajeComp = round(($promedioComp / 20) * 100);
-
-                        $distribucion = ['AD' => 0, 'A' => 0, 'B' => 0, 'C' => 0];
-                        foreach ($resultadosComp as $res) {
-                            $sc = $res->score ?? 0;
-                            if ($sc >= 18) $distribucion['AD']++; elseif ($sc >= 14) $distribucion['A']++;
-                            elseif ($sc >= 11) $distribucion['B']++; else $distribucion['C']++;
-                        }
-
-                        $competenciasStats[] = [
-                            'id' => $resultadosComp->first()->competency_id ?? rand(1, 100),
-                            'nombre' => $nombreCompetencia,
-                            'promedio' => $promedioComp,
-                            'porcentaje_logro' => $porcentajeComp,
-                            'nivel' => $this->obtenerNivelCNEB($promedioComp),
-                            'distribucion' => $distribucion
-                        ];
-                    }
-                } else {
-                    foreach ($competencyLabels as $idx => $labelCompetencia) {
-                        $promedioComp = min(20.0, round($competencyData[$idx] ?? 14.0, 1));
-                        $porcentajeComp = round(($promedioComp / 20) * 100);
-                        
-                        $distribucion = ['AD' => 0, 'A' => 0, 'B' => 0, 'C' => 0];
-                        foreach ($students as $student) {
-                            mt_srand((int) hexdec(substr(md5((string) $student->id . 'comp' . $idx), 0, 7))); 
-                            $score = mt_rand(50, 200) / 10;
-                            if ($score >= 18) $distribucion['AD']++; elseif ($score >= 14) $distribucion['A']++;
-                            elseif ($score >= 11) $distribucion['B']++; else $distribucion['C']++;
-                        }
-
-                        $competenciasStats[] = [
-                            'id' => $idx,
-                            'nombre' => $labelCompetencia,
-                            'promedio' => $promedioComp,
-                            'porcentaje_logro' => $porcentajeComp,
-                            'nivel' => $this->obtenerNivelCNEB($promedioComp),
-                            'distribucion' => $distribucion
-                        ];
-                    }
-                }
-            }
-
-            $courseStats = [
-                'promedio' => $promedioCurso, 'promedio_porcentaje' => $promedioPorcentaje,
-                'porcentaje_aprobados' => $porcentajeAprobados, 'total_evaluados' => $totalEvaluacionesCurso,
-                'preguntas_falladas' => $preguntasFalladas, 'preguntas_correctas' => $preguntasCorrectas,
-                'competencias' => $competenciasStats,
-            ];
-        }
-
-        $promedioGeneralRaw = StudentCompetencyResult::whereIn('student_id', $studentIds)->avg('score');
-        $promedioGeneral = $promedioGeneralRaw ? min(20.0, round($promedioGeneralRaw, 1)) : 14.5;
-        $tasaAprobacion = $courseStats ? $courseStats['porcentaje_aprobados'] : 88;
-
-        // =========================================================================
-        // CREACIÓN DE HISTORIAL DE NOTAS COHERENTE PARA GRÁFICOS Y PANEL DE SEGUIMIENTO
-        // =========================================================================
+        // ======================================================================================
+        // SISTEMA UNIFICADO DE DATOS - FUENTE ÚNICA DE VERDAD COHERENTE POR CURSO
+        // ======================================================================================
         $historialAlumnos = [];
-        $tendenciaGlobal = [
-            'AD' => [0,0,0,0,0,0,0],
-            'A'  => [0,0,0,0,0,0,0],
-            'B'  => [0,0,0,0,0,0,0],
-            'C'  => [0,0,0,0,0,0,0],
+        $tendenciaGlobal = ['AD' => array_fill(0,7,0), 'A' => array_fill(0,7,0), 'B' => array_fill(0,7,0), 'C' => array_fill(0,7,0)];
+        
+        $distribuciones = [
+            0 => ['AD'=>0, 'A'=>0, 'B'=>0, 'C'=>0],
+            1 => ['AD'=>0, 'A'=>0, 'B'=>0, 'C'=>0],
+            2 => ['AD'=>0, 'A'=>0, 'B'=>0, 'C'=>0],
         ];
 
+        $sumAverages = 0;
+        $aprobadosCount = 0;
+
+        foreach ($students as $student) {
+            $history = $this->getStudentUnifiedData($student->id, $currentClassroom->id, $nombreCursoStr);
+            $curr = $history[6]; // Mes actual (Setiembre)
+
+            $student->promedio_pct = $curr['avg_pct'];
+            $student->letra = $curr['avg_letra'];
+            $student->color = $this->getColorCNEB($curr['avg_letra']);
+
+            $sumAverages += $curr['avg_score'];
+            if ($curr['avg_score'] >= 10.5) $aprobadosCount++;
+
+            foreach ($curr['comps'] as $idx => $compData) {
+                if (isset($distribuciones[$idx])) {
+                    $distribuciones[$idx][$compData['letra']]++;
+                }
+            }
+
+            for ($m=0; $m<7; $m++) {
+                $tendenciaGlobal[$history[$m]['avg_letra']][$m]++;
+            }
+
+            $historialAlumnos[$student->name] = $history;
+        }
+
+        $totalEvaluacionesCurso = $students->count();
+        $promedioCurso = $totalEvaluacionesCurso > 0 ? min(20.0, round($sumAverages / $totalEvaluacionesCurso, 1)) : 0;
+        $porcentajeAprobados = $totalEvaluacionesCurso > 0 ? round(($aprobadosCount / $totalEvaluacionesCurso) * 100) : 0;
+        $promedioPorcentaje = round(($promedioCurso / 20) * 100, 1);
+
+        $temasPorCurso = $this->obtenerTemasSugeridosPorCurso($nombreCursoStr);
+        $competencyLabels = $temasPorCurso['labels'];
+
+        $competenciasStats = [];
+        if ($currentCourse && $totalEvaluacionesCurso > 0) {
+            foreach ($competencyLabels as $idx => $labelCompetencia) {
+                $sumComp = 0;
+                foreach ($students as $student) {
+                    $sumComp += $historialAlumnos[$student->name][6]['comps'][$idx]['score'];
+                }
+                $avgComp = min(20.0, round($sumComp / $totalEvaluacionesCurso, 1));
+
+                $competenciasStats[] = [
+                    'id' => $idx,
+                    'nombre' => $labelCompetencia,
+                    'promedio' => $avgComp,
+                    'porcentaje_logro' => round(($avgComp / 20) * 100),
+                    'nivel' => $this->obtenerNivelCNEB($avgComp),
+                    'distribucion' => $distribuciones[$idx] ?? ['AD'=>0, 'A'=>0, 'B'=>0, 'C'=>0]
+                ];
+            }
+        }
+
+        $courseStats = [
+            'promedio' => $promedioCurso, 'promedio_porcentaje' => $promedioPorcentaje,
+            'porcentaje_aprobados' => $porcentajeAprobados, 'total_evaluados' => $totalEvaluacionesCurso,
+            'preguntas_falladas' => $temasPorCurso['falladas'], 'preguntas_correctas' => $temasPorCurso['correctas'],
+            'competencias' => $competenciasStats,
+        ];
+
+        // Panel de Seguimiento (Agosto vs Setiembre)
         $mejoraron = [];
         $bajaron = [];
-
-        if ($students->count() > 0) {
-            foreach ($students as $student) {
-                // Semilla ligada al alumno para mantener los datos fijos al recargar
-                $seed = crc32($student->id . 'history' . ($currentCourse->id ?? 'all'));
-                mt_srand($seed);
-                
-                // Generar nota base de Marzo para el alumno (de 8 a 15)
-                $currentScore = mt_rand(80, 150) / 10; 
-                $studentHistory = [];
-
-                for ($m = 0; $m < 7; $m++) {
-                    // Simular progresión mensual: pequeña tendencia a mejorar o empeorar
-                    $currentScore += (mt_rand(-10, 20) / 10);
-                    $currentScore = min(20, max(0, $currentScore)); // Limitamos entre 0 y 20
-                    
-                    if ($currentScore >= 18) { $l = 'AD'; $tendenciaGlobal['AD'][$m]++; }
-                    elseif ($currentScore >= 14) { $l = 'A'; $tendenciaGlobal['A'][$m]++; }
-                    elseif ($currentScore >= 11) { $l = 'B'; $tendenciaGlobal['B'][$m]++; }
-                    else { $l = 'C'; $tendenciaGlobal['C'][$m]++; }
-
-                    $studentHistory[] = [
-                        'score' => round($currentScore, 1),
-                        'letra' => $l
-                    ];
-                }
-                $historialAlumnos[$student->name] = $studentHistory;
+        $nVal = ['C' => 0, 'B' => 1, 'A' => 2, 'AD' => 3];
+        
+        foreach ($historialAlumnos as $name => $hist) {
+            $lAnt = $hist[5]['avg_letra']; // Agosto
+            $lAct = $hist[6]['avg_letra']; // Setiembre
+            
+            if ($nVal[$lAct] > $nVal[$lAnt]) {
+                $mejoraron[] = ['nombre' => $name, 'cambio' => "De $lAnt a $lAct"];
+            } elseif ($nVal[$lAct] < $nVal[$lAnt]) {
+                $bajaron[] = ['nombre' => $name, 'cambio' => "De $lAnt a $lAct"];
             }
-
-            // Alimentar Panel de Seguimiento (Analizando Agosto vs Septiembre)
-            $nVal = ['C' => 0, 'B' => 1, 'A' => 2, 'AD' => 3];
-            foreach ($historialAlumnos as $name => $hist) {
-                $lAnt = $hist[5]['letra']; // Agosto
-                $lAct = $hist[6]['letra']; // Septiembre
-                
-                if ($nVal[$lAct] > $nVal[$lAnt]) {
-                    $mejoraron[] = ['nombre' => $name, 'cambio' => "De $lAnt a $lAct"];
-                } elseif ($nVal[$lAct] < $nVal[$lAnt]) {
-                    $bajaron[] = ['nombre' => $name, 'cambio' => "De $lAnt a $lAct"];
-                }
-            }
-
-            // Mezclar para no mostrar siempre a los mismos arriba
-            shuffle($mejoraron);
-            shuffle($bajaron);
-            $mejoraron = array_slice($mejoraron, 0, 4);
-            $bajaron = array_slice($bajaron, 0, 4);
         }
+
+        shuffle($mejoraron); shuffle($bajaron);
+        $mejoraron = array_slice($mejoraron, 0, 4);
+        $bajaron = array_slice($bajaron, 0, 4);
+
+        $promedioGeneral = $promedioCurso;
+        $tasaAprobacion = $porcentajeAprobados;
 
         return view('dashboard.classroom', compact(
             'classrooms', 'currentClassroom', 'students', 'courses',
             'currentCourse', 'courseStats', 'promedioGeneral', 
-            'tasaAprobacion', 'competencyLabels', 'competencyData',
+            'tasaAprobacion', 'competencyLabels', 'temasPorCurso',
             'mejoraron', 'bajaron', 'tendenciaGlobal', 'historialAlumnos'
         ));
     }
 
-    private function obtenerNivelCNEB(float $promedio): string
-    {
+    /**
+     * Devuelve las competencias oficiales del CNEB según el curso de prueba evaluado
+     */
+    private function getStudentUnifiedData($studentId, $classroomId, $courseStr) {
+        $courseLower = mb_strtolower($courseStr);
+        
+        if (str_contains($courseLower, 'matemátic')) {
+            $comps = [
+                'Resuelve problemas de cantidad', 
+                'Resuelve problemas de regularidad, equivalencia y cambio', 
+                'Resuelve problemas de forma, movimiento y localización'
+            ];
+        } elseif (str_contains($courseLower, 'comunicaci')) {
+            $comps = [
+                'Se comunica oralmente en su lengua materna', 
+                'Lee diversos tipos de textos escritos', 
+                'Escribe diversos tipos de textos'
+            ];
+        } elseif (str_contains($courseLower, 'ciencia') || str_contains($courseLower, 'tecnolog')) {
+            $comps = [
+                'Indaga mediante métodos científicos', 
+                'Explica el mundo físico', 
+                'Diseña y construye soluciones tecnológicas'
+            ];
+        } else {
+            $comps = ['Competencia 1', 'Competencia 2', 'Competencia 3'];
+        }
+
+        $history = [];
+        for ($m=0; $m<7; $m++) { $history[$m] = ['comps' => []]; }
+
+        foreach ($comps as $idx => $compName) {
+            mt_srand((int) hexdec(substr(md5($classroomId . '-' . $studentId . '-' . $courseStr . '-' . $idx), 0, 7)));
+            $baseScore = mt_rand(85, 185) / 10; 
+
+            for ($m=0; $m<7; $m++) {
+                $score = $baseScore + ($m * 0.4) + (mt_rand(-12, 18) / 10);
+                $score = min(20.0, max(0.0, $score));
+                $letra = $this->obtenerNivelCNEB($score);
+                
+                $history[$m]['comps'][] = [
+                    'name' => $compName,
+                    'score' => round($score, 1),
+                    'letra' => $letra,
+                    'pct' => min(100, round(($score/20)*100))
+                ];
+            }
+        }
+
+        for ($m=0; $m<7; $m++) {
+            $sum = 0;
+            $bestScore = -1;
+            $bestComp = null;
+            
+            foreach ($history[$m]['comps'] as $c) {
+                $sum += $c['score'];
+                if ($c['score'] > $bestScore) {
+                    $bestScore = $c['score'];
+                    $bestComp = $c;
+                }
+            }
+            
+            $avg = $sum / count($comps);
+            $history[$m]['avg_score'] = round($avg, 1);
+            $history[$m]['avg_letra'] = $this->obtenerNivelCNEB($avg);
+            $history[$m]['avg_pct'] = min(100, round(($avg/20)*100));
+            $history[$m]['best_comp_name'] = $bestComp['name'];
+            $history[$m]['best_comp_letra'] = $bestComp['letra'];
+        }
+
+        return $history;
+    }
+
+    private function obtenerNivelCNEB(float $promedio): string {
         if ($promedio >= 18) return 'AD';
         if ($promedio >= 14) return 'A';
         if ($promedio >= 11) return 'B';
         return 'C';
     }
 
-    private function obtenerTemasSugeridosPorCurso(string $nombreCurso): array
-    {
+    private function getColorCNEB(string $letra): string {
+        return match($letra) { 'AD' => 'emerald', 'A' => 'blue', 'B' => 'amber', default => 'rose' };
+    }
+
+    private function obtenerTemasSugeridosPorCurso(string $nombreCurso): array {
         $cursoLower = mb_strtolower($nombreCurso);
-        if (str_contains($cursoLower, 'matemátic') || str_contains($cursoLower, 'algebra') || str_contains($cursoLower, 'geometr')) {
-            return [
-                'labels' => ['Res. de Problemas de Cantidad', 'Regularidad y Cambio', 'Forma y Movimiento'],
-                'scores' => [13.5, 11.8, 14.2],
-                'falladas' => [['pregunta' => 'Resolución de ecuaciones lineales de primer grado', 'acierto' => '38% acierto'],['pregunta' => 'Cálculo de áreas y perímetros en figuras compuestas', 'acierto' => '45% acierto']],
-                'correctas' => [['pregunta' => 'Operaciones básicas con números enteros y fraccionarios', 'acierto' => '88% acierto'],['pregunta' => 'Propiedades de la potenciación y radicación', 'acierto' => '82% acierto']]
-            ];
+        if (str_contains($cursoLower, 'matemátic')) {
+            $labels = ['Resuelve problemas de cantidad', 'Resuelve problemas de regularidad, equivalencia y cambio', 'Resuelve problemas de forma, movimiento y localización'];
+        } elseif (str_contains($cursoLower, 'comunicaci')) {
+            $labels = ['Se comunica oralmente en su lengua materna', 'Lee diversos tipos de textos escritos', 'Escribe diversos tipos de textos'];
+        } elseif (str_contains($cursoLower, 'ciencia') || str_contains($cursoLower, 'tecnolog')) {
+            $labels = ['Indaga mediante métodos científicos', 'Explica el mundo físico', 'Diseña y construye soluciones tecnológicas'];
+        } else {
+            $labels = ['Competencia 1', 'Competencia 2', 'Competencia 3'];
         }
-        if (str_contains($cursoLower, 'comunicaci') || str_contains($cursoLower, 'lengua') || str_contains($cursoLower, 'literat')) {
-            return [
-                'labels' => ['Se comunica oralmente', 'Lee diversos tipos de textos', 'Escribe diversos tipos de textos'],
-                'scores' => [16.2, 15.0, 13.8],
-                'falladas' => [['pregunta' => 'Uso correcto de la tilde diacrítica y reglas de acentuación', 'acierto' => '40% acierto']],
-                'correctas' => [['pregunta' => 'Reconocimiento de sustantivos, adjetivos y verbos', 'acierto' => '91% acierto'],['pregunta' => 'Comprensión de ideas principales e inferencias', 'acierto' => '85% acierto']]
-            ];
-        }
-        if (str_contains($cursoLower, 'ciencia') || str_contains($cursoLower, 'ambient') || str_contains($cursoLower, 'biolog') || str_contains($cursoLower, 'tecnolog')) {
-            return [
-                'labels' => ['Indaga mediante métodos científicos', 'Explica el mundo físico y natural', 'Diseña y construye soluciones tecn.'],
-                'scores' => [14.0, 12.5, 15.8],
-                'falladas' => [['pregunta' => 'Diferenciación entre células eucariotas y procariotas', 'acierto' => '42% acierto'],['pregunta' => 'Identificación de las fases del ciclo del agua y ecosistemas', 'acierto' => '49% acierto']],
-                'correctas' => [['pregunta' => 'Clasificación de los seres vivos en los reinos de la naturaleza', 'acierto' => '89% acierto'],['pregunta' => 'Diseño de prototipos de filtrado de agua escolar', 'acierto' => '92% acierto']]
-            ];
-        }
+
         return [
-            'labels' => ['Gestión de Conocimientos', 'Aplicación Práctica', 'Razonamiento Crítico'],
-            'scores' => [14.0, 13.5, 15.0],
-            'falladas' => [['pregunta' => 'Aplicación de conceptos teóricos en ejercicios prácticos', 'acierto' => '45% acierto']],
-            'correctas' => [['pregunta' => 'Cumplimiento de tareas y participación activa en clase', 'acierto' => '89% acierto']]
+            'labels' => $labels,
+            'falladas' => [['pregunta' => 'Aplicación de conceptos teóricos en ejercicios', 'acierto' => '45%']],
+            'correctas' => [['pregunta' => 'Participación activa y desarrollo de tareas', 'acierto' => '89%']]
         ];
     }
 
@@ -255,97 +245,60 @@ class DashboardController extends Controller
     {
         $student = Student::with('classroom')->findOrFail($id);
         $selectedCourseId = $request->query('course_id') ?? $request->query('course');
-        $query = StudentCompetencyResult::with(['competency.course'])->where('student_id', $student->id);
-
+        
+        $currentCourse = null;
         if ($selectedCourseId && $selectedCourseId !== 'all') {
-            $query->whereHas('competency', function ($q) use ($selectedCourseId) {
-                if (is_numeric($selectedCourseId)) $q->where('course_id', $selectedCourseId);
-                else $q->whereHas('course', function ($cq) use ($selectedCourseId) { $cq->where('name', $selectedCourseId); });
-            });
-        }
-
-        $resultsRaw = $query->get();
-        $results = $resultsRaw->groupBy(function ($item) {
-            return $item->competency && $item->competency->course ? $item->competency->course->name : 'General / Sin Curso';
-        });
-
-        mt_srand((int) hexdec(substr(md5((string) $student->id), 0, 7)));
-
-        if ($results->isEmpty()) {
-            $cursosSimulados = [
-                'Matemática' => ['Res. de Problemas de Cantidad', 'Regularidad, Equivalencia y Cambio', 'Forma, Movimiento y Localización'],
-                'Comunicación' => ['Se comunica oralmente en su lengua materna', 'Lee diversos tipos de textos escritos', 'Escribe diversos tipos de textos'],
-                'Ciencia y Tecnología' => ['Indaga mediante métodos científicos para construir conocimientos', 'Explica el mundo físico basándose en conocimientos sobre seres vivos', 'Diseña y construye soluciones tecnológicas para resolver problemas']
-            ];
-
-            if ($selectedCourseId && $selectedCourseId !== 'all') {
-                $courseObj = is_numeric($selectedCourseId) ? Course::find($selectedCourseId) : Course::where('name', $selectedCourseId)->first();
-                $cName = $courseObj ? $courseObj->name : 'Ciencia y Tecnología';
-                if (isset($cursosSimulados[$cName])) $cursosSimulados = [$cName => $cursosSimulados[$cName]];
-            }
-
-            $results = collect();
-            foreach ($cursosSimulados as $cName => $comps) {
-                $compList = collect();
-                foreach ($comps as $compName) {
-                    $dummy = new StudentCompetencyResult();
-                    $dummy->score = mt_rand(85, 192) / 10;
-                    $dummy->competency = (object)['name' => $compName, 'course' => (object)['name' => $cName]];
-                    $compList->push($dummy);
-                }
-                $results->put($cName, $compList);
+            if (is_numeric($selectedCourseId)) {
+                $currentCourse = Course::find($selectedCourseId);
+            } else {
+                $currentCourse = Course::where('name', $selectedCourseId)->first();
             }
         }
 
-        $currentCourse = is_numeric($selectedCourseId) ? Course::find($selectedCourseId) : Course::where('name', $selectedCourseId)->first();
+        // Asignamos estrictamente el nombre del curso actual (Matemática, Comunicación o Ciencia)
+        $courseName = $currentCourse ? $currentCourse->name : 'Matemática';
+
+        // Extraemos exactamente las competencias del curso correspondiente
+        $historialReal = $this->getStudentUnifiedData($student->id, $student->classroom_id, $courseName);
+        $notasActuales = $historialReal[6]['comps'];
+
+        $results = collect([
+            $courseName => collect($notasActuales)->map(function($c) {
+                $obj = new \stdClass();
+                $obj->score = $c['score'];
+                $obj->competency = new \stdClass();
+                $obj->competency->name = $c['name'];
+                return $obj;
+            })
+        ]);
+
         return view('dashboard.student-detail', compact('student', 'results', 'currentCourse', 'selectedCourseId'));
     }
 
-    /**
-     * Módulo Vistas Notas - Garantiza sincronía perfecta de conteos.
-     */
     public function showVistasNotas(Request $request)
     {
         try {
             $letra = $request->query('letra', 'B'); 
-            $competenciaId = $request->query('competencia_id', 1);
-            $classroomId = $request->query('classroom_id'); 
-            
-            // EL FIX A LA COMPETENCIA: Recibir el nombre por la URL en vez de sumarle 1 al ID
+            $competenciaId = (int) $request->query('competencia_id', 0);
+            $classroomId = $request->query('classroom_id', 1); 
             $competenciaNombre = $request->query('competencia_nombre', 'Competencia Seleccionada');
+            $courseName = $request->query('course_name', 'General');
+            $courseId = $request->query('course_id', 'all'); 
 
             $query = Student::orderBy('name', 'asc');
             if ($classroomId) $query->where('classroom_id', $classroomId);
             $estudiantesAll = $query->get();
-            $studentIds = $estudiantesAll->pluck('id');
-
-            $realResults = StudentCompetencyResult::whereIn('student_id', $studentIds)
-                ->where('competency_id', $competenciaId)
-                ->get()
-                ->keyBy('student_id');
-
-            $totalReal = $realResults->count();
             
-            $estudiantes = $estudiantesAll->filter(function($student) use ($letra, $competenciaId, $realResults, $totalReal) {
-                if ($totalReal > 0 && $realResults->has($student->id)) {
-                    $score = $realResults->get($student->id)->score ?? 0;
-                } else {
-                    mt_srand((int) hexdec(substr(md5((string) $student->id . 'comp' . $competenciaId), 0, 7))); 
-                    $score = mt_rand(50, 200) / 10; 
-                }
-                
-                if ($score >= 18) $studentLetra = 'AD';
-                elseif ($score >= 14) $studentLetra = 'A';
-                elseif ($score >= 11) $studentLetra = 'B';
-                else $studentLetra = 'C';
-                
-                return $studentLetra === $letra;
+            $estudiantes = $estudiantesAll->filter(function($student) use ($letra, $competenciaId, $classroomId, $courseName) {
+                $historial = $this->getStudentUnifiedData($student->id, $classroomId, $courseName);
+                $compLetra = $historial[6]['comps'][$competenciaId]['letra'] ?? 'C';
+                return $compLetra === $letra;
             })->values();
 
-            return view('vistasnotas.index', compact('letra', 'competenciaNombre', 'estudiantes'));
+            return view('vistasnotas.index', compact('letra', 'competenciaNombre', 'estudiantes', 'courseId', 'courseName'));
 
         } catch (\Throwable $e) {
-            dd('❌ ERROR FATAL CAPTURADO:', $e->getMessage(), 'Archivo: ' . $e->getFile(), 'Línea: ' . $e->getLine());
+            dd('❌ ERROR FATAL CAPTURADO:', $e->getMessage());
         }
     }
 }
